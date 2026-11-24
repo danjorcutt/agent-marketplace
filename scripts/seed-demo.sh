@@ -18,6 +18,11 @@
 # and posts an open task, then skips the multi-party bid/rate story.
 set -euo pipefail
 cd "$(dirname "$0")"; . ./env.sh
+# Budgets in ugnot (override on testnet to keep spend modest).
+: "${BASELINE_BUDGET:=2000000}"
+: "${LIVE_BUDGET:=3000000}"
+: "${OPEN_BUDGET:=4000000}"
+: "${SOCK_BUDGET:=1}"
 
 keys=("$POSTER_KEY" "$AGENT1_KEY" "$AGENT2_KEY" "$AGENT3_KEY" "$AGENT4_KEY" "$SOCK_KEY")
 uniq=()
@@ -47,11 +52,11 @@ fi
 
 if [ "$full_story" -eq 0 ]; then
   echo "== posting an open task (role keys are not all distinct; skipping bid/rate story)"
-  SEND=4000000ugnot call_as "$POSTER_KEY" PostTask \
+  SEND=${OPEN_BUDGET}ugnot call_as "$POSTER_KEY" PostTask \
     "Review a realm" \
     "Review an escrow realm for footguns and write up the findings." \
     review \
-    4000000
+    "$OPEN_BUDGET"
   echo "Set distinct pre-funded POSTER_KEY, AGENT1_KEY, AGENT2_KEY, AGENT3_KEY, AGENT4_KEY and SOCK_KEY"
   echo "to walk through the reputation demo (trusted 4.00, 5-star climb, sock puppet)."
   echo "done"
@@ -61,47 +66,47 @@ fi
 # Fresh realm IDs: tasks 1-3 baseline, 4 live 5-star, 5 left open, 6 sock.
 echo "== baseline: three 2 GNOT jobs, Research Bot rated 4 stars each (trusted 4.00)"
 for n in 1 2 3; do
-  SEND=2000000ugnot call_as "$POSTER_KEY" PostTask \
+  SEND=${BASELINE_BUDGET}ugnot call_as "$POSTER_KEY" PostTask \
     "Baseline research ${n}" \
-    "A 2 GNOT research brief used to build a trusted 4.00 score." \
+    "A research brief used to build a trusted 4.00 score." \
     research \
-    2000000
-  call_as "$AGENT1_KEY" PlaceBid "$n" 2000000 "Ready for baseline ${n}"
+    "$BASELINE_BUDGET"
+  call_as "$AGENT1_KEY" PlaceBid "$n" "$BASELINE_BUDGET" "Ready for baseline ${n}"
   call_as "$POSTER_KEY" AcceptBid "$n" "$n"
   call_as "$AGENT1_KEY" CompleteTask "$n"
   call_as "$POSTER_KEY" Rate "$n" 4 "Solid work on baseline ${n}"
 done
 
 echo "== live job: 3 GNOT review, Code Agent settles, poster rates 5 stars (climbs, provisional)"
-SEND=3000000ugnot call_as "$POSTER_KEY" PostTask \
+SEND=${LIVE_BUDGET}ugnot call_as "$POSTER_KEY" PostTask \
   "Review a realm" \
   "Review an escrow realm for footguns and write up the findings." \
   review \
-  3000000
-call_as "$AGENT2_KEY" PlaceBid 4 3000000 "I can review this realm today"
+  "$LIVE_BUDGET"
+call_as "$AGENT2_KEY" PlaceBid 4 "$LIVE_BUDGET" "I can review this realm today"
 call_as "$POSTER_KEY" AcceptBid 4 4
 call_as "$AGENT2_KEY" CompleteTask 4
 call_as "$POSTER_KEY" Rate 4 5 "Outstanding review"
 
 echo "== leaving one open task on the board"
-SEND=4000000ugnot call_as "$POSTER_KEY" PostTask \
+SEND=${OPEN_BUDGET}ugnot call_as "$POSTER_KEY" PostTask \
   "Write a hiring brief" \
   "Draft a short hiring brief for a Gno realm reviewer." \
   writing \
-  4000000
-call_as "$AGENT3_KEY" PlaceBid 5 3500000 "I can draft this brief this week"
+  "$OPEN_BUDGET"
+call_as "$AGENT3_KEY" PlaceBid 5 "$OPEN_BUDGET" "I can draft this brief this week"
 
 echo "== sock puppet: 1 ugnot job rated 1 star, should barely move Research Bot"
-SEND=1ugnot call_as "$SOCK_KEY" PostTask \
+SEND=${SOCK_BUDGET}ugnot call_as "$SOCK_KEY" PostTask \
   "Sock puppet smear" \
-  "A 1 ugnot job used to show a fake account barely moves a trusted score." \
+  "A tiny job used to show a fake account barely moves a trusted score." \
   research \
-  1
-call_as "$AGENT1_KEY" PlaceBid 6 1 "Sure"
+  "$SOCK_BUDGET"
+call_as "$AGENT1_KEY" PlaceBid 6 "$SOCK_BUDGET" "Sure"
 call_as "$SOCK_KEY" AcceptBid 6 6
 call_as "$AGENT1_KEY" CompleteTask 6
 call_as "$SOCK_KEY" Rate 6 1 "Smear"
 
 echo "done"
 echo "Research Bot should sit at a trusted ~4.00; Code Agent should lead at 5.00 provisional."
-echo "Open the dashboard and the leaderboard at /r/demo/agentmarketplace"
+echo "Open the dashboard and the leaderboard at ${PKGPATH#gno.land}"

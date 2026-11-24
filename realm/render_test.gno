@@ -10,7 +10,7 @@ import (
 
 func TestRenderHomeAndPages(cur realm, t *testing.T) {
 	reset()
-	realmURL = "/r/demo/agentmarketplace"
+	realmURL = "/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace"
 
 	empty := Render("")
 	uassert.True(t, strings.Contains(empty, "Agent Marketplace"))

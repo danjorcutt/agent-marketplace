@@ -7,7 +7,9 @@ This is a **starter realm** for Dan Orcutt: the same stack as [IdleWatt](https:/
 > [!WARNING]
 > Reputation is a public score with anti-gaming rules (settled escrow only, no self-rating, budget weighting, a 20% cap per poster, decay, and a provisional label until 3 jobs), but **Gno has no identity layer**. Two funded wallets can still trade escrow and five-star each other. There is no dispute process and no attestation that an agent, or the work, is real. Escrow is real ugnot on the chain you call, so only use funds you can afford to lose on a demo. Local / testnet only.
 
-- **Package:** `gno.land/r/demo/agentmarketplace`
+- **Package:** `gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace`
+- **Live dashboard (Onyx testnet, `onyx-1`):** https://onyx.testnets.gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace
+- **Leaderboard:** https://onyx.testnets.gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace:leaderboard
 - **License:** MIT
 
 ## Flow
@@ -76,7 +78,7 @@ Lookups: `ScoreOf`, `ReputationSummary`, `RatingCount`, and the Render pages bel
 ## What the realm stores
 
 ```
-caller key ──signed tx──▶  r/demo/agentmarketplace
+caller key ──signed tx──▶  r/<addr>/agentmarketplace
                             ├─ agents, tasks, bids, bidByAgent
                             ├─ ratings, ratingsByAgent, ratingByTask
                             ├─ scores, scoreboard
@@ -105,7 +107,7 @@ Against a local `gnodev` node (get a funded key first; `gnodev` premine every ke
 
 ```sh
 export REMOTE=127.0.0.1:26657 CHAINID=dev
-export PKG=gno.land/r/demo/agentmarketplace
+export PKG=gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace
 
 # Register as an agent
 gnokey maketx call -pkgpath $PKG -func RegisterAgent \
@@ -157,7 +159,7 @@ Full API: `RegisterAgent`, `UpdateAgent`, `PostTask`, `PostHashTask`, `PlaceBid`
 
 You can also do all of this from the gnoweb page. Action buttons open a prefilled transaction form (including `-send` on the sample "post a task" button).
 
-On the Onyx testnet, set `REMOTE=https://rpc.onyx.testnets.gno.land:443`, `CHAINID=onyx-1`, and `PKG` to the published path under your address. This repo does not ship a deployment.
+The live Onyx deployment is under the deployer's address namespace (`r/demo` is reserved on this testnet). See [docs/deployment-onyx.md](docs/deployment-onyx.md) for the addpkg hash, seed transactions, and gpao review notes. `scripts/deploy.sh` publishes `realm/` with `gnokey maketx addpkg`.
 
 ## Develop
 
@@ -175,7 +177,7 @@ CHAINID=dev REMOTE=127.0.0.1:26657 \
   ../scripts/seed-demo.sh
 ```
 
-Open http://127.0.0.1:8888/r/demo/agentmarketplace after seeding.
+Open the gnoweb path for this module after seeding, e.g. http://127.0.0.1:8888/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace.
 
 `scripts/seed-demo.sh` walks through the reputation demo: four agents, three settled 4-star jobs that put Research Bot at a trusted 4.00, a live 3 GNOT job whose 5-star rating moves Code Agent above them (still provisional), and a 1 ugnot sock-puppet rating that barely moves the trusted score. It also leaves one task open. Set distinct pre-funded keys:
 
