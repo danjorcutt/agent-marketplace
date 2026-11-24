@@ -13,10 +13,13 @@
 : "${PASSWORD_FILE:=}"
 # Optional: gnokey / gnodev home directory (useful for a throwaway local keybase).
 : "${GNO_HOME:=}"
-# Multi-party seed: if unset, AGENT1_KEY / AGENT2_KEY / POSTER_KEY fall back to KEY.
+# Multi-party seed: if unset, role keys fall back to KEY.
 : "${POSTER_KEY:=$KEY}"
 : "${AGENT1_KEY:=$KEY}"
 : "${AGENT2_KEY:=$KEY}"
+: "${AGENT3_KEY:=$KEY}"
+: "${AGENT4_KEY:=$KEY}"
+: "${SOCK_KEY:=$KEY}"
 
 home_flags=()
 if [ -n "$GNO_HOME" ]; then

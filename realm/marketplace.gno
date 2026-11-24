@@ -225,9 +225,13 @@ func AcceptBid(cur realm, taskID, bidID int) {
 // settle escrow. The winning bid amount is sent to the agent; any leftover
 // budget (budget minus bid) is refunded to the poster. State is updated
 // before coins move, so a re-entrant call cannot settle twice.
+// Hash-commit tasks must use RevealAndComplete instead.
 func CompleteTask(cur realm, taskID int) {
 	caller := mustUserCall(cur)
 	t := mustGetTask(taskID)
+	if t.CommitHash != "" {
+		panic("this task requires a hash reveal: call RevealAndComplete")
+	}
 	if t.Status != StatusInProgress {
 		panic("only an in-progress task can be completed")
 	}
@@ -237,7 +241,13 @@ func CompleteTask(cur realm, taskID int) {
 	if t.Settled {
 		panic("this task has already been settled")
 	}
-	b := mustGetBid(taskID, t.WinningBidID)
+	settleTask(cur, t, "open")
+}
+
+// settleTask applies the completed-and-paid state and moves coins.
+// caller checks must already have been performed.
+func settleTask(cur realm, t *Task, method string) {
+	b := mustGetBid(t.ID, t.WinningBidID)
 	pay := b.Amount
 	refund := t.BudgetUgnot - pay
 	if refund < 0 {
@@ -253,11 +263,13 @@ func CompleteTask(cur realm, taskID int) {
 		a.Completed++
 		a.EarnedUgnot += pay
 	}
+	recordPosterPayment(t.Poster, t.Winner, t.BudgetUgnot)
 	chain.Emit("TaskCompleted",
-		"task", strconv.Itoa(taskID),
+		"task", strconv.Itoa(t.ID),
 		"agent", t.Winner.String(),
 		"paidUgnot", strconv.FormatInt(pay, 10),
 		"refundedUgnot", strconv.FormatInt(refund, 10),
+		"method", method,
 	)
 	sendUgnot(cur, t.Winner, pay)
 	sendUgnot(cur, t.Poster, refund)

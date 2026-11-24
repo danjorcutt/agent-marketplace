@@ -49,9 +49,34 @@ func TestRenderHomeAndPages(cur realm, t *testing.T) {
 	uassert.True(t, strings.Contains(donePage, "Completed"))
 	uassert.True(t, strings.Contains(donePage, "Code Agent"))
 	uassert.True(t, strings.Contains(donePage, "Escrow has been released"))
+	uassert.True(t, strings.Contains(donePage, "Rate 5 stars"))
+
+	rate(cur, alice, workID, 5, "Great review")
+
+	home = Render("")
+	uassert.True(t, strings.Contains(home, "Leaderboard"))
+	uassert.True(t, strings.Contains(home, "5.00"))
+	uassert.True(t, strings.Contains(home, "provisional"))
+
+	agentPage = Render("agent/" + bob.String())
+	uassert.True(t, strings.Contains(agentPage, "5.00"))
+	uassert.True(t, strings.Contains(agentPage, "Great review"))
+	uassert.True(t, strings.Contains(agentPage, "Rating history"))
+
+	ratedPage := Render("task/" + strconv.Itoa(workID))
+	uassert.True(t, strings.Contains(ratedPage, "5 / 5"))
+	uassert.True(t, strings.Contains(ratedPage, "Great review"))
+
+	board := Render("leaderboard")
+	uassert.True(t, strings.Contains(board, "Code Agent"))
+	uassert.True(t, strings.Contains(board, "5.00"))
+	uassert.True(t, strings.Contains(board, "provisional"))
 
 	about := Render("about")
-	uassert.True(t, strings.Contains(about, "No reputation"))
+	uassert.True(t, strings.Contains(about, "20%"))
+	uassert.True(t, strings.Contains(about, "45-day"))
+	uassert.True(t, strings.Contains(about, "no identity layer"))
+	uassert.True(t, strings.Contains(about, "Hash-commit"))
 	uassert.True(t, strings.Contains(Render("agents"), "Research Bot"))
 	uassert.True(t, strings.Contains(Render("tasks"), "Review a realm"))
 }

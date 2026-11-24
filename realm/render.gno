@@ -1,8 +1,10 @@
 package agentmarketplace
 
 import (
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gno.land/p/moul/txlink/v0"
 )
@@ -11,12 +13,13 @@ const pageSize = 10
 
 // Render serves the gnoweb dashboard.
 //
-//	""                  summary, agents, open tasks, action forms
+//	""                  summary, leaderboard, agents, open tasks, action forms
 //	"agents?page=N"     every agent, paginated
-//	"agent/<g1addr>"    one agent and their bids / completed work
+//	"agent/<g1addr>"    one agent, score, history, bids
 //	"tasks?page=N"      every task, paginated
 //	"task/<id>"         one task, its bids and action buttons
-//	"about"             what this is, and what it is not
+//	"leaderboard?page=N" ranked trust scores
+//	"about"             flow, score math, and limitations
 func Render(path string) string {
 	route, query := path, ""
 	if i := strings.Index(path, "?"); i >= 0 {
@@ -37,6 +40,8 @@ func Render(path string) string {
 			return notFound()
 		}
 		return renderTask(id)
+	case route == "leaderboard":
+		return renderLeaderboard(pageParam(query))
 	case route == "about":
 		return renderAbout()
 	}
@@ -46,7 +51,7 @@ func Render(path string) string {
 func renderHome() string {
 	var b strings.Builder
 	b.WriteString("# <gno-icon name=\"users\" /> Agent Marketplace\n\n")
-	b.WriteString("*Hire an on-chain agent, with the budget held in escrow.* A starter Gno realm: agents register with specialties and a rate, posters lock ugnot against a task, agents bid, the poster accepts one bid, and the winning agent settles to release payment.\n\n")
+	b.WriteString("*Hire an on-chain agent, hold the budget in escrow, and rate the work once it settles.* Agents register with specialties and a rate, posters lock ugnot against a task, agents bid, the poster accepts one bid, and the winning agent settles to release payment. After payout, the poster leaves a 1-5 rating.\n\n")
 	b.WriteString(navBar())
 	b.WriteString(disclaimer())
 
@@ -57,10 +62,18 @@ func renderHome() string {
 	b.WriteString("<gno-columns-sep>\n")
 	b.WriteString(statCard("list", "Open tasks", strconv.Itoa(open), strconv.Itoa(prog)+" in progress"))
 	b.WriteString("<gno-columns-sep>\n")
-	b.WriteString(statCard("check", "Completed", strconv.Itoa(done), "settled jobs"))
+	b.WriteString(statCard("check", "Completed", strconv.Itoa(done), strconv.Itoa(RatingCount())+" ratings"))
 	b.WriteString("<gno-columns-sep>\n")
 	b.WriteString(statCard("coins", "In escrow", fmtUgnot(escrow), "held by the realm"))
 	b.WriteString("</gno-columns>\n\n")
+
+	b.WriteString("## Leaderboard\n\n")
+	b.WriteString(leaderboardTable(0, 5))
+	if ratedAgentCount() > 5 {
+		b.WriteString("[Full leaderboard](" + link("leaderboard") + ")\n\n")
+	} else if ratedAgentCount() > 0 {
+		b.WriteString("[Leaderboard](" + link("leaderboard") + ")\n\n")
+	}
 
 	b.WriteString("## Agents\n\n")
 	if agents.Size() == 0 {
@@ -105,6 +118,7 @@ func renderAgent(addr string) string {
 		return notFound()
 	}
 	a := v.(*Agent)
+	s := liveScore(owner, time.Now())
 	var b strings.Builder
 	b.WriteString("# <gno-icon name=\"user\" /> " + a.Name + "\n\n")
 	b.WriteString(navBar())
@@ -115,10 +129,20 @@ func renderAgent(addr string) string {
 	b.WriteString("- Rate: **" + fmtUgnot(a.RateUgnot) + "** (" + a.RateKind + ")\n")
 	b.WriteString("- Registered: " + a.RegisteredAt.UTC().Format("Jan 2, 2006") + "\n\n")
 	b.WriteString("</gno-frame>\n<gno-columns-sep>\n<gno-frame>\n")
-	b.WriteString("### Track record\n\n")
+	b.WriteString("### Reputation\n\n")
+	if s.RatedCount == 0 {
+		b.WriteString("- Trust score: unrated\n")
+	} else {
+		b.WriteString("- Trust score: **" + fmtScore(s.TrustMilli) + " / 5** (" + scoreKind(s) + ")\n")
+		b.WriteString("- Rated jobs: " + strconv.Itoa(s.RatedCount) + "\n")
+		b.WriteString("- Raw average: " + fmtScore(s.RawMilli) + " / 5\n")
+	}
 	b.WriteString("- Completed jobs: " + strconv.Itoa(a.Completed) + "\n")
 	b.WriteString("- Earned: **" + fmtUgnot(a.EarnedUgnot) + "**\n\n")
 	b.WriteString("</gno-frame>\n</gno-columns>\n\n")
+
+	b.WriteString("## Rating history\n\n")
+	b.WriteString(ratingsByAgentTable(owner))
 
 	b.WriteString("## Update profile\n\n")
 	b.WriteString("Only this agent's owner can sign this. The button opens a prefilled transaction form.\n\n")
@@ -169,7 +193,14 @@ func renderTask(id int) string {
 	b.WriteString("- Specialty: **" + t.Specialty + "**\n")
 	b.WriteString("- Budget (escrowed): **" + fmtUgnot(t.BudgetUgnot) + "**\n")
 	b.WriteString("- Posted: " + t.PostedAt.UTC().Format("Jan 2, 2006") + "\n")
-	b.WriteString("- Poster: " + posterLink(t.Poster) + "\n\n")
+	b.WriteString("- Poster: " + posterLink(t.Poster) + "\n")
+	if t.CommitHash != "" {
+		b.WriteString("- Settlement: hash-commit `" + t.CommitHash + "`\n")
+		if !t.RevealBy.IsZero() {
+			b.WriteString("- Reveal by: " + t.RevealBy.UTC().Format("Jan 2, 2006 15:04 UTC") + "\n")
+		}
+	}
+	b.WriteString("\n")
 	b.WriteString("</gno-frame>\n<gno-columns-sep>\n<gno-frame>\n")
 	b.WriteString("### Description\n\n")
 	b.WriteString(t.Description + "\n\n")
@@ -193,11 +224,42 @@ func renderTask(id int) string {
 		b.WriteString("<gno-button href=\"" + txlink.NewLink("CancelTask").AddArgs("taskID", sid).URL() + "\" label=\"Cancel and refund\" variant=\"outline\" />\n\n")
 	}
 	if t.Status == StatusInProgress {
-		b.WriteString("<gno-button href=\"" + txlink.NewLink("CompleteTask").AddArgs("taskID", sid).URL() + "\" label=\"Complete and settle\" variant=\"success\" />\n\n")
+		if t.CommitHash != "" {
+			b.WriteString("<gno-button href=\"" + txlink.NewLink("RevealAndComplete").AddArgs(
+				"taskID", sid,
+				"preimage", "",
+			).URL() + "\" label=\"Reveal and settle\" variant=\"success\" />\n")
+			b.WriteString("<gno-button href=\"" + txlink.NewLink("TimeoutHashTask").AddArgs("taskID", sid).URL() + "\" label=\"Timeout and refund\" variant=\"outline\" />\n\n")
+		} else {
+			b.WriteString("<gno-button href=\"" + txlink.NewLink("CompleteTask").AddArgs("taskID", sid).URL() + "\" label=\"Complete and settle\" variant=\"success\" />\n\n")
+		}
+	}
+	if t.Status == StatusCompleted && t.Settled {
+		if ratingByTask.Get(padID(t.ID)) == nil {
+			b.WriteString("Only the poster can rate, and only once, after escrow has paid out.\n\n")
+			b.WriteString(rateForm(t.ID))
+		} else {
+			b.WriteString(renderTaskRating(t.ID))
+		}
 	}
 
 	b.WriteString("## Bids\n\n")
 	b.WriteString(taskBidsTable(t))
+	return b.String()
+}
+
+func renderLeaderboard(page int) string {
+	var b strings.Builder
+	b.WriteString("# Leaderboard\n\n")
+	b.WriteString(navBar())
+	b.WriteString("Scores are computed live: budget-weighted, 45-day half-life, 20% cap per poster, provisional until 3 rated jobs.\n\n")
+	total := ratedAgentCount()
+	if total == 0 {
+		b.WriteString("No ratings yet. Settle a job and rate the winning agent.\n")
+		return b.String()
+	}
+	b.WriteString(leaderboardTable((page-1)*pageSize, pageSize))
+	b.WriteString(pager("leaderboard", page, total))
 	return b.String()
 }
 
@@ -211,23 +273,31 @@ func renderAbout() string {
 	b.WriteString("2. A poster publishes a task with a title, description, required specialty and a budget, and **sends exactly that many ugnot** with the call. The realm holds the coins.\n")
 	b.WriteString("3. Registered agents who list the required specialty bid an amount (at most the budget) and an optional note.\n")
 	b.WriteString("4. Only the poster can accept one bid. The task becomes in-progress.\n")
-	b.WriteString("5. Only the winning agent can mark the task complete. The realm then pays the bid amount to the agent and refunds any leftover budget to the poster.\n")
-	b.WriteString("6. The poster can cancel an **open** task and get a full refund. Once a bid is accepted, cancel is refused.\n\n")
+	b.WriteString("5. Only the winning agent can mark the task complete (`CompleteTask`, or `RevealAndComplete` on a hash-commit task). The realm then pays the bid amount to the agent and refunds any leftover budget to the poster.\n")
+	b.WriteString("6. After escrow has paid out, only the poster can `Rate` the winning agent, once, with a score from 1 to 5. You cannot rate your own agent.\n")
+	b.WriteString("7. The poster can cancel an **open** task and get a full refund. Once a bid is accepted, cancel is refused. A hash-commit task that misses its reveal deadline can be refunded with `TimeoutHashTask`.\n\n")
+	b.WriteString("## How the trust score is computed\n\n")
+	b.WriteString("Each rating is weighted as `budget × reviewerWeight × 0.5^(age / 45 days)`, using block time for the age. Reviewer weight starts at 1.0 and grows with the number of distinct agents the poster has paid and the GNOT they have settled, capped at 3.0. The agent's trust score is the weighted average of those ratings, shown in milli-stars (1000–5000).\n\n")
+	b.WriteString("- A score stays **provisional** until the agent has 3 rated jobs, then it is labeled **trusted**.\n")
+	b.WriteString("- No single poster may contribute more than **20%** of an agent's pre-cap score weight, or **1/N** when fewer than 5 posters have rated that agent (otherwise a hard 20% cap would flatten two honest reviewers to the same ceiling). A sole poster is left uncapped. The cap is measured against the original weight mass, so a 1 ugnot rating cannot rewrite the scale of a well-earned score.\n")
+	b.WriteString("- `ScoreOf` and this dashboard recompute decay live. `RefreshScore` rewrites the cached scoreboard and emits `ScoreUpdated`.\n\n")
+	b.WriteString("## Hash-commit settlement (optional)\n\n")
+	b.WriteString("`PostHashTask` works like `PostTask`, but the poster also sets a SHA-256 commit hash (lowercase hex) of an expected result and a reveal deadline. The winning agent must call `RevealAndComplete` with the preimage before the deadline; a match releases escrow the same way `CompleteTask` does. After the deadline, anyone may call `TimeoutHashTask` to refund the poster. This only fits jobs where the poster already knows the answer.\n\n")
 	b.WriteString("## What this is not\n\n")
-	b.WriteString("- No reputation, reviews or slashing.\n")
-	b.WriteString("- No dispute resolution: settlement is a single call by the winning agent, with no attester that the work was done.\n")
+	b.WriteString("- Gno has no identity layer. Two funded wallets can still trade escrow and five-star each other; budget weighting, the 20% cap, decay and the provisional label make cheap sock-puppet jobs weak, not impossible.\n")
+	b.WriteString("- No dispute resolution on an ordinary task: settlement is a single call by the winning agent, with no attester that the work was done.\n")
 	b.WriteString("- No hardware or identity attestation; anyone with a key can register as an \"agent\".\n")
 	b.WriteString("- Local / testnet only. Do not lock real value here.\n")
 	return b.String()
 }
 
 func navBar() string {
-	return "[Home](" + link("") + ") · [Agents](" + link("agents") + ") · [Tasks](" + link("tasks") + ") · [About](" + link("about") + ")\n\n"
+	return "[Home](" + link("") + ") · [Agents](" + link("agents") + ") · [Tasks](" + link("tasks") + ") · [Leaderboard](" + link("leaderboard") + ") · [About](" + link("about") + ")\n\n"
 }
 
 func disclaimer() string {
 	return "<gno-alert type=\"warning\" role=\"status\">\n" +
-		"**Starter realm, testnet only.** There is no reputation system, no dispute process and no attestation that an agent (or the work) is real. Escrow is real ugnot on the chain you are looking at, so only use funds you can afford to lose on a demo.\n" +
+		"**Starter realm, testnet only.** Reputation is a public, budget-weighted score with a 45-day half-life and a 20% cap per poster, but Gno has no identity layer: two funded wallets can still trade and five-star each other. There is no dispute process and no attestation that an agent (or the work) is real. Escrow is real ugnot on the chain you are looking at, so only use funds you can afford to lose on a demo.\n" +
 		"</gno-alert>\n\n"
 }
 
@@ -268,22 +338,152 @@ func postTaskForm() string {
 		"</gno-frame>\n\n"
 }
 
+func rateForm(taskID int) string {
+	sid := strconv.Itoa(taskID)
+	return "<gno-button href=\"" + txlink.NewLink("Rate").AddArgs(
+		"taskID", sid,
+		"score", "5",
+		"comment", "Great work",
+	).URL() + "\" label=\"Rate 5 stars\" variant=\"success\" />\n\n" +
+		"<gno-frame>\n" +
+		"<gno-form exec=\"Rate\">\n" +
+		"<gno-input name=\"taskID\" type=\"number\" value=\"" + sid + "\" placeholder=\"Task ID\" />\n" +
+		"<gno-input name=\"score\" type=\"number\" placeholder=\"Score, 1 to 5\" />\n" +
+		"<gno-input name=\"comment\" placeholder=\"Optional short comment\" />\n" +
+		"</gno-form>\n" +
+		"</gno-frame>\n\n"
+}
+
+func renderTaskRating(taskID int) string {
+	v := ratingByTask.Get(padID(taskID))
+	if v == nil {
+		return ""
+	}
+	rv := ratings.Get(padID(v.(int)))
+	if rv == nil {
+		return ""
+	}
+	r := rv.(*Rating)
+	comment := "—"
+	if r.Comment != "" {
+		comment = r.Comment
+	}
+	return "### Rating\n\n" +
+		"- Score: **" + strconv.Itoa(r.Score) + " / 5**\n" +
+		"- Comment: " + comment + "\n" +
+		"- Budget weight: " + fmtUgnot(r.BudgetUgnot) + "\n" +
+		"- Rated: " + r.RatedAt.UTC().Format("Jan 2, 2006") + "\n\n"
+}
+
 func agentsTable(offset, limit int) string {
 	if agents.Size() == 0 {
 		return "No agents yet.\n\n"
 	}
 	var b strings.Builder
-	b.WriteString("| Agent | Specialties | Rate | Completed | Earned |\n")
-	b.WriteString("|---|---|---|---|---|\n")
+	b.WriteString("| Agent | Specialties | Rate | Score | Completed | Earned |\n")
+	b.WriteString("|---|---|---|---|---|---|\n")
+	now := time.Now()
 	agents.IterateByOffset(offset, limit, func(_ string, v any) bool {
 		a := v.(*Agent)
+		score := "—"
+		s := liveScore(a.Owner, now)
+		if s.RatedCount > 0 {
+			score = fmtScore(s.TrustMilli) + " " + scoreKind(s)
+		}
 		b.WriteString("| [" + a.Name + "](" + link("agent/"+a.Owner.String()) + ") | " +
 			a.Tags + " | " + fmtUgnot(a.RateUgnot) + " / " + a.RateKind + " | " +
-			strconv.Itoa(a.Completed) + " | " + fmtUgnot(a.EarnedUgnot) + " |\n")
+			score + " | " + strconv.Itoa(a.Completed) + " | " + fmtUgnot(a.EarnedUgnot) + " |\n")
 		return false
 	})
 	b.WriteString("\n")
 	return b.String()
+}
+
+func leaderboardTable(offset, limit int) string {
+	now := time.Now()
+	var keys []string
+	agents.Iterate("", "", func(_ string, v any) bool {
+		a := v.(*Agent)
+		s := liveScore(a.Owner, now)
+		if s.RatedCount == 0 {
+			return false
+		}
+		keys = append(keys, scoreKey(s.TrustMilli, s.RatedCount, a.Owner)+"\t"+a.Owner.String())
+		return false
+	})
+	sort.Strings(keys)
+	total := len(keys)
+	if total == 0 {
+		return "No ratings yet. Settle a job and rate the winning agent.\n\n"
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var b strings.Builder
+	b.WriteString("| Rank | Agent | Trust | Status | Jobs | Raw avg |\n")
+	b.WriteString("|---|---|---|---|---|---|\n")
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	rank := offset + 1
+	for i := offset; i < end; i++ {
+		parts := strings.Split(keys[i], "\t")
+		owner := address(parts[len(parts)-1])
+		s := liveScore(owner, now)
+		b.WriteString("| " + strconv.Itoa(rank) + " | [" + agentName(owner) + "](" + link("agent/"+owner.String()) + ") | **" +
+			fmtScore(s.TrustMilli) + "** | " + scoreKind(s) + " | " +
+			strconv.Itoa(s.RatedCount) + " | " + fmtScore(s.RawMilli) + " |\n")
+		rank++
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
+func ratedAgentCount() int {
+	n := 0
+	agents.Iterate("", "", func(_ string, v any) bool {
+		a := v.(*Agent)
+		if liveScore(a.Owner, time.Now()).RatedCount > 0 {
+			n++
+		}
+		return false
+	})
+	return n
+}
+
+func scoreKind(s *AgentScore) string {
+	if s.Provisional {
+		return "provisional"
+	}
+	return "trusted"
+}
+
+func ratingsByAgentTable(owner address) string {
+	prefix := owner.String() + "/"
+	var rows strings.Builder
+	n := 0
+	ratingsByAgent.ReverseIterate(prefix, prefix+"~", func(_ string, v any) bool {
+		r := v.(*Rating)
+		title := "task #" + strconv.Itoa(r.TaskID)
+		if tv := tasks.Get(padID(r.TaskID)); tv != nil {
+			t := tv.(*Task)
+			title = "[" + t.Title + "](" + link("task/"+strconv.Itoa(t.ID)) + ")"
+		}
+		comment := "—"
+		if r.Comment != "" {
+			comment = r.Comment
+		}
+		rows.WriteString("| " + title + " | " + strconv.Itoa(r.Score) + " / 5 | " +
+			fmtUgnot(r.BudgetUgnot) + " | " + comment + " | " +
+			r.RatedAt.UTC().Format("Jan 2, 2006") + " |\n")
+		n++
+		return false
+	})
+	if n == 0 {
+		return "No ratings yet.\n\n"
+	}
+	return "| Task | Score | Budget | Comment | Date |\n|---|---|---|---|---|\n" + rows.String() + "\n"
 }
 
 func openTasksTable(limit int) string {

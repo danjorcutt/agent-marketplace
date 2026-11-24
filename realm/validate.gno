@@ -23,6 +23,12 @@ const (
 	minBudgetUgnot  = 1
 	maxBudgetUgnot  = 1000000000000
 	ugnotPerGnot    = 1000000
+	minScore        = 1
+	maxScore        = 5
+	maxCommentLen   = 120
+	commitHashLen   = 64
+	minRevealSecs   = 60
+	maxRevealSecs   = 30 * 24 * 60 * 60
 )
 
 // isSafeChar is the character whitelist for every free-text field. It keeps
@@ -142,4 +148,36 @@ func agentHasSpecialty(agentTags, specialty string) bool {
 		}
 	}
 	return false
+}
+
+func checkScore(score int) {
+	if score < minScore || score > maxScore {
+		panic("score must be an integer from 1 to 5")
+	}
+}
+
+func checkComment(comment string) {
+	if comment == "" {
+		return
+	}
+	checkText("comment", comment, 1, maxCommentLen)
+}
+
+func checkCommitHash(h string) string {
+	h = strings.ToLower(h)
+	if len(h) != commitHashLen {
+		panic("commit hash must be a 64-character hex SHA-256 digest")
+	}
+	for _, c := range h {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			panic("commit hash must be a 64-character hex SHA-256 digest")
+		}
+	}
+	return h
+}
+
+func checkRevealDeadline(secs int64) {
+	if secs < minRevealSecs || secs > maxRevealSecs {
+		panic("reveal deadline must be between 60 seconds and 30 days")
+	}
 }

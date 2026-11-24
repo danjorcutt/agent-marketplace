@@ -18,15 +18,26 @@ var (
 	alice = testutils.TestAddress("alice")
 	bob   = testutils.TestAddress("bob")
 	carol = testutils.TestAddress("carol")
+	dave  = testutils.TestAddress("dave")
+	eve   = testutils.TestAddress("eve")
+	frank = testutils.TestAddress("frank")
 )
 
 func reset() {
 	nextTaskID = 1
 	nextBidID = 1
+	nextRatingID = 1
 	agents = avl.NewTree()
 	tasks = avl.NewTree()
 	bids = avl.NewTree()
 	bidByAgent = avl.NewTree()
+	ratings = avl.NewTree()
+	ratingsByAgent = avl.NewTree()
+	ratingByTask = avl.NewTree()
+	scores = avl.NewTree()
+	scoreboard = avl.NewTree()
+	posterStats = avl.NewTree()
+	posterAgents = avl.NewTree()
 }
 
 func fundRealm(amount int64) {
@@ -87,6 +98,47 @@ func cancel(cur realm, poster address, taskID int) {
 	testing.SetRealm(testing.NewUserRealm(poster))
 	testing.SetOriginCaller(poster)
 	CancelTask(cross(cur), taskID)
+}
+
+func rate(cur realm, poster address, taskID, score int, comment string) int {
+	testing.SetRealm(testing.NewUserRealm(poster))
+	testing.SetOriginCaller(poster)
+	return Rate(cross(cur), taskID, score, comment)
+}
+
+func refreshScore(cur realm, caller, agent address) {
+	testing.SetRealm(testing.NewUserRealm(caller))
+	testing.SetOriginCaller(caller)
+	RefreshScore(cross(cur), agent)
+}
+
+func postHash(cur realm, poster address, title, desc, spec string, budget int64, hash string, deadlineSecs int64) int {
+	testing.SetRealm(testing.NewUserRealm(poster))
+	testing.SetOriginCaller(poster)
+	testing.SetOriginSend(chain.Coins{{Denom: "ugnot", Amount: budget}})
+	fundRealm(budget)
+	return PostHashTask(cross(cur), title, desc, spec, budget, hash, deadlineSecs)
+}
+
+func reveal(cur realm, agent address, taskID int, preimage string) {
+	testing.SetRealm(testing.NewUserRealm(agent))
+	testing.SetOriginCaller(agent)
+	RevealAndComplete(cross(cur), taskID, preimage)
+}
+
+func timeoutHash(cur realm, caller address, taskID int) {
+	testing.SetRealm(testing.NewUserRealm(caller))
+	testing.SetOriginCaller(caller)
+	TimeoutHashTask(cross(cur), taskID)
+}
+
+// settleJob posts a task, accepts a full-budget bid, and settles it.
+func settleJob(cur realm, poster, agent address, title, desc, spec string, budget int64) int {
+	id := post(cur, poster, title, desc, spec, budget)
+	bidID := bid(cur, agent, id, budget, "ready")
+	accept(cur, poster, id, bidID)
+	complete(cur, agent, id)
+	return id
 }
 
 func TestRegisterAgent(cur realm, t *testing.T) {
