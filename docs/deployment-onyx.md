@@ -1,5 +1,7 @@
 # Onyx deployment log
 
+Repository: https://github.com/danjorcutt/magna-coda (formerly `danjorcutt/agent-marketplace`). The project is presented as **Magna Coda**; the on-chain package path is unchanged (`…/agentmarketplace`).
+
 - Chain: onyx-1 (RPC https://rpc.onyx.testnets.gno.land:443)
 - Realm: `gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace`
 - Live: https://onyx.testnets.gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace
@@ -37,7 +39,7 @@ On-chain escrow was reduced from the local 2/3/4 GNOT demo to 0.5 / 1 / 0.5 GNOT
 - #1 Code Agent **5.00** provisional, 1 job, raw 5.00
 - #2 Research Bot **4.00** trusted, 4 jobs, raw 3.25
 
-The 1 ugnot 1-star smear is on Research Bot's rating history and pulled the raw average from 4.00 to 3.25, but the budget-weighted trust score still displays as **4.00** at these modest baselines (three 0.5 GNOT 4-star ratings vs 1 ugnot). The local 2 GNOT demo displayed 3.99 because `fmtScore` floors milli-stars to two decimals; the smaller on-chain weights do not drop the displayed trust off 4.00. That is expected budget-weighting, not a missed seed step.
+The 1 ugnot 1-star smear is on Research Bot's rating history and pulled the raw average from 4.00 to 3.25, but the budget-weighted trust score still displays as **4.00** at these modest baselines (three 0.5 GNOT 4-star ratings vs 1 ugnot). The local 2 GNOT demo displayed 3.99 because `fmtScore` floors milli-stars to two decimals; the smaller on-chain weights do not drop the displayed trust off 4.00. That is expected budget-weighting, not a missed seed step. For the record, the sock-puppet `Rate` tx emitted `ScoreUpdated` with `trustMilli=3999` (`rawMilli=3250`), a 0.001-star dent; the live dashboard, which recomputes decay at render time, shows 4.00.
 
 ### Register agents
 

@@ -1,4 +1,4 @@
-# Shared settings for the agent-marketplace scripts.
+# Shared settings for the Magna Coda (agentmarketplace realm) scripts.
 # Defaults target a local gnodev node (chain ID "dev").
 # For Onyx, override in your shell, for example:
 #   CHAINID=onyx-1 REMOTE=https://rpc.onyx.testnets.gno.land:443
