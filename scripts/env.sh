@@ -2,11 +2,11 @@
 # Defaults target a local gnodev node (chain ID "dev").
 # For Onyx, override in your shell, for example:
 #   CHAINID=onyx-1 REMOTE=https://rpc.onyx.testnets.gno.land:443
-#   KEY=<your gnokey name> PKGPATH=gno.land/r/<addr>/agentmarketplace
+#   KEY=<your gnokey name> PKGPATH=gno.land/r/<addr>/magnacoda
 : "${CHAINID:=dev}"
 : "${REMOTE:=127.0.0.1:26657}"
 : "${KEY:=test1}"                              # gnokey key name; never commit a mnemonic
-: "${PKGPATH:=gno.land/r/demo/agentmarketplace}"
+: "${PKGPATH:=gno.land/r/demo/magnacoda}"
 : "${GAS_FEE:=1000000ugnot}"
 : "${GAS_WANTED:=30000000}"
 # Optional: file holding the keybase password, for unattended runs.

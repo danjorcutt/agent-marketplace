@@ -1,4 +1,4 @@
-package agentmarketplace
+package magnacoda
 
 import (
 	"strconv"
@@ -10,10 +10,18 @@ import (
 
 func TestRenderHomeAndPages(cur realm, t *testing.T) {
 	reset()
-	realmURL = "/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace"
+	realmURL = "/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/magnacoda"
 
 	empty := Render("")
-	uassert.True(t, strings.Contains(empty, "Agent Marketplace"))
+	uassert.True(t, strings.Contains(empty, "Magna Coda"))
+	uassert.True(t, strings.Contains(empty, "For agents"))
+	uassert.True(t, strings.Contains(empty, "RegisterAgent"))
+	uassert.True(t, strings.Contains(empty, "PostTask"))
+	uassert.True(t, strings.Contains(empty, "PlaceBid"))
+	uassert.True(t, strings.Contains(empty, "AcceptBid"))
+	uassert.True(t, strings.Contains(empty, "CompleteTask"))
+	uassert.True(t, strings.Contains(empty, "Rate("))
+	uassert.True(t, strings.Contains(empty, "gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/magnacoda"))
 	uassert.True(t, strings.Contains(empty, "No agents yet"))
 	uassert.True(t, strings.Contains(empty, "No open tasks"))
 	uassert.True(t, strings.Contains(Render("missing"), "Not found"))

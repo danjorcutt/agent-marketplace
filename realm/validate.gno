@@ -1,4 +1,4 @@
-package agentmarketplace
+package magnacoda
 
 import (
 	"sort"

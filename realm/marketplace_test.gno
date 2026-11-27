@@ -1,4 +1,4 @@
-package agentmarketplace
+package magnacoda
 
 import (
 	"chain"
@@ -12,7 +12,7 @@ import (
 	"gno.land/p/nt/urequire/v0"
 )
 
-const pkgPath = "gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/agentmarketplace"
+const pkgPath = "gno.land/r/g1pzn6rn8q0pfmq4xje4j8086ncnldavyz8skgp3/magnacoda"
 
 var (
 	alice = testutils.TestAddress("alice")
